@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function RegisterPage() {
+    const router = useRouter();
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -14,7 +15,8 @@ export default function RegisterPage() {
         confirmPassword: '',
     });
 
-    const router = useRouter();
+    const [errorMsg, setErrorMsg] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -22,61 +24,56 @@ export default function RegisterPage() {
 
     const handleRegister = async (e) => {
         e.preventDefault();
+        setErrorMsg('');
+        setSuccessMsg('');
 
         const { firstName, lastName, username, email, password, confirmPassword } = formData;
 
         if (password !== confirmPassword) {
-            alert("Passwords don't match!");
+            setErrorMsg("Passwords don't match!");
             return;
         }
 
-        // 1. Register user in Supabase Auth
+        // 1. Sign up user with Supabase
         const { data: signupData, error: signupError } = await supabase.auth.signUp({
             email,
             password,
         });
 
         if (signupError) {
-            alert(signupError.message);
+            setErrorMsg(signupError.message);
             return;
         }
 
-        // 2. Get user ID from session
-        const {
-            data: { session },
-            error: sessionError,
-        } = await supabase.auth.getSession();
+        const userId = signupData.user?.id;
 
-        if (sessionError || !session?.user?.id) {
-            alert("User created but session not found. Please check your email for confirmation.");
-            return;
-        }
-
-        const userId = session.user.id;
-
-        // 3. Insert into profiles table
+        // 2. Insert profile info
         const { error: profileError } = await supabase.from('profiles').insert([
             {
                 id: userId,
                 first_name: firstName,
                 last_name: lastName,
                 username,
-                email,
             },
         ]);
 
         if (profileError) {
-            alert("User created, but profile insert failed: " + profileError.message);
+            setErrorMsg("User created, but profile insert failed: " + profileError.message);
             return;
         }
 
-        alert('Registered successfully! Please check your email to confirm.');
-        router.push('/login');
+        setSuccessMsg('Registered successfully! Redirecting to dashboard...');
+        setTimeout(() => {
+            router.push('/dashboard');
+        }, 2000);
     };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-[#0f172a] text-white">
-            <form onSubmit={handleRegister} className="bg-[#1e293b] p-6 rounded shadow-md w-96 space-y-4">
+            <form
+                onSubmit={handleRegister}
+                className="bg-[#1e293b] p-6 rounded shadow-md w-96 space-y-4"
+            >
                 <h2 className="text-2xl font-bold mb-2 text-center">Register</h2>
 
                 <input
@@ -139,17 +136,27 @@ export default function RegisterPage() {
                     className="w-full p-2 rounded bg-gray-800 border border-gray-600"
                 />
 
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">
+                <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded">
                     Register
                 </button>
 
-                <p className="text-sm text-center mt-2 text-gray-400">
+                {errorMsg && (
+                    <div className="text-sm text-red-500 text-center">{errorMsg}</div>
+                )}
+
+                {successMsg && (
+                    <div className="text-sm text-green-400 text-center">{successMsg}</div>
+                )}
+
+                <p className="text-center text-sm mt-4">
                     Already registered?{' '}
-                    <a href="/login" className="text-blue-400 hover:underline">
+                    <a
+                        href="/login"
+                        className="text-blue-400 hover:underline hover:text-blue-300"
+                    >
                         Sign in
                     </a>
                 </p>
-
             </form>
         </div>
     );
